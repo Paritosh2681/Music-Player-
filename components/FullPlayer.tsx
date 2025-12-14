@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Song } from '../types';
-import { Play, Pause, SkipBack, SkipForward, Volume2, ChevronDown, Repeat, Shuffle, Sparkles, Loader2, Info } from 'lucide-react';
-import { generateSongVibe } from '../services/geminiService';
+import { Play, Pause, SkipBack, SkipForward, Volume2, ChevronDown, Repeat, Shuffle } from 'lucide-react';
 
 interface FullPlayerProps {
   song: Song;
@@ -26,37 +25,6 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   onVolumeChange,
   onClose,
 }) => {
-  const [analysis, setAnalysis] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  // Reset analysis when song changes
-  useEffect(() => {
-    setAnalysis(null);
-    setIsAnalyzing(false);
-  }, [song.id]);
-
-  const handleAnalyze = async () => {
-    if (analysis) {
-      setAnalysis(null); // Toggle off if already showing
-      return;
-    }
-    
-    setIsAnalyzing(true);
-    try {
-      // Use the artist + name for better context if available
-      const query = song.artist && song.artist !== 'Unknown Artist' 
-        ? `${song.name} by ${song.artist}` 
-        : song.name;
-        
-      const result = await generateSongVibe(query);
-      setAnalysis(result);
-    } catch (e) {
-      setAnalysis("Could not analyze track.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
@@ -88,21 +56,8 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
           <p className="text-sm font-medium text-slate-300 line-clamp-1">{song.name}</p>
         </div>
         
-        {/* AI Analysis Toggle */}
-        <button 
-          onClick={handleAnalyze}
-          disabled={isAnalyzing}
-          className={`p-2 transition rounded-lg hover:bg-white/10 ${
-            analysis ? 'text-sky-400 bg-sky-900/20' : 'text-slate-400 hover:text-sky-300'
-          }`}
-          title="AI Sonic Analysis"
-        >
-          {isAnalyzing ? (
-            <Loader2 className="w-6 h-6 animate-spin" />
-          ) : (
-            <Sparkles className="w-6 h-6" />
-          )}
-        </button>
+        {/* Empty div to balance the header since AI button is removed */}
+        <div className="w-12"></div>
       </div>
 
       {/* Main Content */}
@@ -114,7 +69,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
           <div className={`absolute inset-0 bg-sky-900/10 blur-3xl rounded-full transition-all duration-1000 ease-in-out ${isPlaying ? 'opacity-40 scale-105' : 'opacity-0 scale-90'}`}></div>
 
           {/* Art Container */}
-          <div className={`relative w-full h-full rounded shadow-2xl overflow-hidden ring-1 ring-white/5 transform transition-all duration-[3s] ease-in-out ${isPlaying && !analysis ? 'scale-[1.01]' : 'scale-100'}`}>
+          <div className={`relative w-full h-full rounded shadow-2xl overflow-hidden ring-1 ring-white/5 transform transition-all duration-[3s] ease-in-out ${isPlaying ? 'scale-[1.01]' : 'scale-100'}`}>
                
              {song.coverUrl ? (
                <img 
@@ -133,19 +88,6 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
              
              {/* Shine Effect */}
              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none"></div>
-
-             {/* AI Analysis Overlay */}
-             {analysis && (
-                <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center animate-[fadeIn_0.3s_ease-out]">
-                   <div className="mb-4 p-2 bg-sky-500/10 rounded-full">
-                      <Sparkles className="w-6 h-6 text-sky-400" />
-                   </div>
-                   <h3 className="text-white font-heading text-xl mb-3">Sonic Insight</h3>
-                   <p className="text-zinc-300 text-sm leading-relaxed font-light">
-                      {analysis}
-                   </p>
-                </div>
-             )}
           </div>
         </div>
 
