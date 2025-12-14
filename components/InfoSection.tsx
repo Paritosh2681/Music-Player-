@@ -17,7 +17,7 @@ export const InfoSection: React.FC = () => {
            <div className="h-1 w-12 bg-sky-600 mb-6 shadow-[0_0_10px_rgba(14,165,233,0.3)]"></div>
            <p className="text-zinc-400 text-lg font-light tracking-wide">
              Engineered for raw performance. <br className="hidden md:block"/>
-             No bloat. No tracking. Just signal.
+             Capable of both offline isolation and secure cloud synchronization.
            </p>
         </div>
 
@@ -28,30 +28,30 @@ export const InfoSection: React.FC = () => {
           <div className="md:col-span-7 border-l border-t border-zinc-800 p-8 md:p-12 min-h-[300px] flex flex-col justify-between bg-transparent hover:border-zinc-700 transition-colors duration-500">
              <div>
                <Zap className="w-8 h-8 text-sky-600 mb-6" strokeWidth={1.5} />
-               <h3 className="text-3xl text-white font-light mb-4">Zero-Latency Core</h3>
+               <h3 className="text-3xl text-white font-light mb-4">Zero-Latency Playback</h3>
              </div>
              <p className="text-zinc-500 text-lg leading-relaxed max-w-md">
-                Direct stream processing eliminates buffer lag. Your input maps 1:1 to audio output with mathematical precision.
+                Whether loading a local blob or streaming a synced track, our optimized buffering engine ensures instant response times.
              </p>
           </div>
 
-          {/* 2. Privacy - Deep black, minimal effect */}
+          {/* 2. Hybrid Mode - Deep black, minimal effect */}
           <div className="md:col-span-5 bg-black border border-zinc-800 p-6 flex flex-col justify-center items-start relative overflow-hidden group">
              {/* Very subtle noise on hover only */}
              <div className="absolute inset-0 opacity-0 group-hover:opacity-10 bg-[url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] transition-opacity duration-700"></div>
              
              <div className="relative z-10">
                <span className="text-sky-600 font-mono text-xs uppercase tracking-[0.2em] mb-4 block">
-                 Security Protocol
+                 Storage Protocol
                </span>
-               <h3 className="text-xl text-white font-medium mb-3">Client-Side Only</h3>
+               <h3 className="text-xl text-white font-medium mb-3">Hybrid Storage Model</h3>
                <p className="text-zinc-600 text-sm font-mono leading-relaxed">
-                 NO CLOUD UPLOADS.<br/>
-                 NO ANALYTICS.<br/>
-                 NO EXTERNAL REQUESTS.
+                 GUEST: RAM-ONLY SANDBOX.<br/>
+                 USER: SECURE CLOUD BUCKETS.<br/>
+                 YOU DECIDE.
                </p>
                <p className="mt-4 text-zinc-700 text-xs">
-                 Files are processed entirely within your local execution environment (Sandbox Mode).
+                 Seamlessly switch between ephemeral local sessions and persistent cloud libraries.
                </p>
              </div>
           </div>
@@ -61,7 +61,7 @@ export const InfoSection: React.FC = () => {
              <Maximize2 className="w-6 h-6 text-zinc-600 mb-auto" />
              <h3 className="text-white text-lg font-medium mb-2">Adaptive Viewport</h3>
              <p className="text-zinc-500 text-sm">
-               Visualizations scale mathematically to any density, from 4K monitors to mobile screens.
+               The interface scales mathematically to any density, providing a consistent experience on desktop or mobile.
              </p>
           </div>
 
@@ -70,7 +70,7 @@ export const InfoSection: React.FC = () => {
              <div className="max-w-md">
                <h3 className="text-2xl text-white font-light mb-2">Lossless Audio Engine</h3>
                <p className="text-zinc-500">
-                 Native FLAC & WAV decoding with 32-bit floating point mixing.
+                 Native decoding of high-resolution formats with floating point mixing.
                </p>
              </div>
              

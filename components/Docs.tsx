@@ -10,7 +10,7 @@ export const Docs: React.FC = () => {
             <h2 className="text-4xl md:text-5xl font-heading text-white mb-6">Documentation</h2>
             <p className="text-zinc-400 text-lg max-w-2xl">
               Technical reference for the SonicStream audio engine. <br/>
-              Everything runs locally. Here is how it works.
+              Understanding how your data is handled.
             </p>
         </div>
         
@@ -24,7 +24,7 @@ export const Docs: React.FC = () => {
                     <h3 className="text-white text-xl">Supported Formats</h3>
                  </div>
                  <p className="text-zinc-500 leading-relaxed mb-4">
-                    SonicStream leverages the <span className="text-zinc-300 font-mono text-xs p-1 bg-zinc-900 rounded">AudioContext</span> API. Support depends on your browser (Chrome/Firefox/Safari).
+                    SonicStream leverages the browser's <span className="text-zinc-300 font-mono text-xs p-1 bg-zinc-900 rounded">AudioContext</span> API. Support depends on your browser (Chrome/Firefox/Safari).
                  </p>
                  <ul className="space-y-3">
                     <li className="flex items-start gap-3 text-sm text-zinc-400">
@@ -45,11 +45,11 @@ export const Docs: React.FC = () => {
               <div className="group">
                  <div className="flex items-center gap-3 text-sky-500 font-medium mb-4">
                     <ShieldAlert className="w-5 h-5" />
-                    <h3 className="text-white text-xl">Sandbox Mode</h3>
+                    <h3 className="text-white text-xl">Identity & Storage</h3>
                  </div>
                  <p className="text-zinc-500 leading-relaxed">
-                    If you are not logged in, or if the connection fails, the player enters <strong className="text-white">Sandbox Mode</strong>. 
-                    Files are blobs in memory. Refreshing the page wipes the state. This is a feature, not a bug, ensuring zero data persistence on shared machines.
+                    <strong>Guest Mode:</strong> Operates in a browser sandbox. Files are loaded as Blobs in memory. Refreshing the page clears all data. Perfect for shared devices.<br/><br/>
+                    <strong>Account Mode:</strong> Authenticates via Supabase. Metadata is stored in a relational DB, while audio binaries are kept in secure object storage buckets, accessible only to your account.
                  </p>
               </div>
            </div>
@@ -80,10 +80,10 @@ export const Docs: React.FC = () => {
               <div className="group">
                  <div className="flex items-center gap-3 text-sky-500 font-medium mb-4">
                     <Terminal className="w-5 h-5" />
-                    <h3 className="text-white text-xl">CLI Metadata</h3>
+                    <h3 className="text-white text-xl">Metadata Extraction</h3>
                  </div>
                  <p className="text-zinc-500 leading-relaxed mb-4">
-                    We use ID3v2.4 tags for metadata. If your cover art isn't showing, ensure it's embedded as <span className="font-mono text-xs text-zinc-400 bg-zinc-900 px-1">APIC</span> type Front Cover.
+                    We utilize <span className="font-mono text-xs text-zinc-400 bg-zinc-900 px-1">jsmediatags</span> to parse ID3 (v1/v2) headers client-side before upload or playback. This ensures your library is organized by Artist and Title automatically without manual entry.
                  </p>
               </div>
            </div>
