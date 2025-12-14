@@ -65,7 +65,8 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
         <div className="w-full flex flex-col items-center gap-6 md:gap-8 h-full justify-center min-h-[500px]">
         
           {/* Album Art / Visualizer - Responsive Height Constraints */}
-          <div className="relative aspect-square w-full max-w-[280px] md:max-w-[380px] max-h-[35vh] md:max-h-[45vh] group perspective-[1000px] shrink-0">
+          {/* Using min() ensures the width is driven by the viewport height if that is the limiting factor, preserving the square aspect ratio. */}
+          <div className="relative aspect-square w-[min(100%,_35vh)] md:w-[min(100%,_45vh)] max-w-[280px] md:max-w-[380px] group perspective-[1000px] shrink-0">
             {/* Ambient Glow behind art - Greatly Reduced */}
             <div className={`absolute inset-0 bg-sky-900/10 blur-3xl rounded-full transition-all duration-1000 ease-in-out ${isPlaying ? 'opacity-40 scale-105' : 'opacity-0 scale-90'}`}></div>
 
