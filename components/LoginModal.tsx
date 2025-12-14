@@ -66,7 +66,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onGuest
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: window.location.origin,
+          queryParams: {
+            // CRITICAL FIX: Forces Google to show the account chooser.
+            // This prevents the "403: You do not have access" error caused by 
+            // the browser defaulting to a different logged-in Google account.
+            prompt: 'select_account',
+            access_type: 'offline'
+          }
         }
       });
       if (error) throw error;
