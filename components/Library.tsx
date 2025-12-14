@@ -1,6 +1,6 @@
 import React from 'react';
 import { Song, User } from '../types';
-import { Play, Pause, Music, Disc, Cloud, RefreshCw, CloudOff } from 'lucide-react';
+import { Play, Pause, Music, Disc, Cloud, RefreshCw, CloudOff, ListPlus } from 'lucide-react';
 import { Button } from './Button';
 
 interface LibraryProps {
@@ -13,6 +13,7 @@ interface LibraryProps {
   user?: User | null;
   onLoginClick?: () => void;
   onRefresh?: () => void;
+  onAddToQueue?: (song: Song) => void;
 }
 
 export const Library: React.FC<LibraryProps> = ({ 
@@ -24,7 +25,8 @@ export const Library: React.FC<LibraryProps> = ({
   onNavigateHome,
   user,
   onLoginClick,
-  onRefresh
+  onRefresh,
+  onAddToQueue
 }) => {
   const isGuest = user?.id === 'guest';
 
@@ -175,6 +177,15 @@ export const Library: React.FC<LibraryProps> = ({
 
                 {/* Actions */}
                 <div className="col-span-5 md:col-span-2 flex items-center justify-end gap-2">
+                   {onAddToQueue && (
+                      <button 
+                         onClick={(e) => { e.stopPropagation(); onAddToQueue(song); }}
+                         className="p-2 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors opacity-0 group-hover:opacity-100"
+                         title="Add to Queue"
+                      >
+                         <ListPlus className="w-4 h-4" />
+                      </button>
+                   )}
                    <button 
                       onClick={() => isCurrent && isPlaying ? onPause() : onPlay(song)}
                       className={`p-2 rounded-full transition-all ${

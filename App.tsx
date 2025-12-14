@@ -52,6 +52,8 @@ const App: React.FC = () => {
   
   // Audio State
   const [library, setLibrary] = useState<Song[]>([]);
+  const [queue, setQueue] = useState<Song[]>([]); // Manual Priority Queue
+  const [skippedTracks, setSkippedTracks] = useState<Set<string>>(new Set()); // Tracks removed from "Up Next"
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -100,6 +102,8 @@ const App: React.FC = () => {
            setLibrary([]); 
            setCurrentSong(null);
            setIsPlaying(false);
+           setQueue([]);
+           setSkippedTracks(new Set());
         }
       }
     };
@@ -134,6 +138,8 @@ const App: React.FC = () => {
     if (user?.id === 'guest') {
       setUser(null);
       setLibrary([]);
+      setQueue([]);
+      setSkippedTracks(new Set());
       setCurrentSong(null);
       setIsPlaying(false);
       setView('home');
@@ -157,9 +163,9 @@ const App: React.FC = () => {
     setNotification({ message, type });
   };
 
-  // Audio Handlers
+  // --- Audio Logic ---
+
   const handleUpload = async (file: File) => {
-    // Strict check for auth before upload
     if (!user) {
       showNotification("Please sign in or continue as guest to upload music.", 'info');
       setIsLoginOpen(true);
@@ -181,7 +187,7 @@ const App: React.FC = () => {
 
           const guestSong: Song = {
             id: `guest-${Date.now()}`,
-            url: URL.createObjectURL(file), // Create local blob URL
+            url: URL.createObjectURL(file),
             name: title,
             artist: artist,
             duration: 0,
@@ -208,25 +214,21 @@ const App: React.FC = () => {
         return;
     }
 
-    // AUTHENTICATED UPLOAD LOGIC
+    // AUTHENTICATED UPLOAD
     try {
-      // 1. Extract Metadata
       const metadata = await extractMetadata(file);
       title = metadata.title || title;
       artist = metadata.artist || artist;
       coverUrl = metadata.coverUrl;
 
-      // 2. Upload to Supabase Storage & DB
       const newSong = await uploadTrack(file, user.id, {
         title,
         artist,
         duration: 0 
       });
 
-      // 3. Add coverUrl locally for this session
       newSong.coverUrl = coverUrl;
 
-      // 4. Update Library State
       setLibrary(prev => [newSong, ...prev]);
       setCurrentSong(newSong);
       setIsPlaying(true);
@@ -237,7 +239,6 @@ const App: React.FC = () => {
       console.error("Upload/Sync failed:", error);
       const msg = error.message || "Unknown error";
 
-      // FALLBACK: If Cloud sync fails (RLS, Network), play locally
       const localUrl = URL.createObjectURL(file);
       const tempSong: Song = {
         id: `local-${Date.now()}`,
@@ -255,17 +256,124 @@ const App: React.FC = () => {
       setIsPlaying(true);
       setView('library');
 
-      if (msg.includes("Storage Upload Failed")) {
-        showNotification("Upload failed (Storage). Playing locally.", 'error');
-      } else {
-        showNotification(`Playing locally. Cloud error: ${msg}`, 'error');
-      }
+      showNotification(`Playing locally. Cloud error: ${msg}`, 'error');
     } finally {
       setIsUploading(false);
     }
   };
 
   const togglePlay = () => setIsPlaying(!isPlaying);
+
+  const playNext = () => {
+    // 1. Check Priority Queue (Manual Additions)
+    if (queue.length > 0) {
+      const nextSong = queue[0];
+      setQueue(prev => prev.slice(1)); // Remove first item
+      setCurrentSong(nextSong);
+      setIsPlaying(true);
+      return;
+    }
+
+    // 2. Fallback to Library Order
+    if (!currentSong || library.length === 0) return;
+    
+    const currentIndex = library.findIndex(s => s.id === currentSong.id);
+    if (currentIndex === -1) {
+        // Current song might be from outside library (e.g. just uploaded) or deleted
+        // Just play first song in library if available
+        if (library.length > 0) {
+            setCurrentSong(library[0]);
+            setIsPlaying(true);
+        }
+        return;
+    }
+
+    // Find next valid index (skip skipped tracks)
+    let nextIndex = currentIndex + 1;
+    while (nextIndex < library.length && skippedTracks.has(library[nextIndex].id)) {
+        nextIndex++;
+    }
+    
+    if (nextIndex < library.length) {
+       // Play next in library
+       setCurrentSong(library[nextIndex]);
+       setIsPlaying(true);
+    } else {
+       // End of playlist
+       setIsPlaying(false);
+    }
+  };
+
+  const playPrevious = () => {
+    if (!currentSong || library.length === 0) return;
+    
+    // If we are more than 3 seconds in, restart song
+    if (currentTime > 3) {
+       if (audioRef.current) audioRef.current.currentTime = 0;
+       return;
+    }
+
+    const currentIndex = library.findIndex(s => s.id === currentSong.id);
+    
+    // Find prev valid index (simple check for now, could also skip backwards over skipped tracks)
+    if (currentIndex > 0) {
+      let prevIndex = currentIndex - 1;
+      while (prevIndex >= 0 && skippedTracks.has(library[prevIndex].id)) {
+         prevIndex--;
+      }
+
+      if (prevIndex >= 0) {
+         setCurrentSong(library[prevIndex]);
+         setIsPlaying(true);
+      }
+    }
+  };
+
+  const handleAddToQueue = (song: Song) => {
+    setQueue(prev => [...prev, song]);
+    showNotification(`Added "${song.name}" to queue`, 'info');
+  };
+
+  // Derived state: What is actually playing next?
+  // Combines Manual Queue + Remaining Library Tracks (minus skipped ones)
+  const getUpNext = useCallback(() => {
+    // 1. Manual Queue
+    const manualQueue = [...queue];
+
+    // 2. Library Continuation
+    let autoQueue: Song[] = [];
+    if (currentSong && library.length > 0) {
+       const idx = library.findIndex(s => s.id === currentSong.id);
+       if (idx !== -1 && idx < library.length - 1) {
+          autoQueue = library.slice(idx + 1);
+       }
+    }
+
+    // 3. Filter out skipped tracks from the Library part
+    const filteredAutoQueue = autoQueue.filter(s => !skippedTracks.has(s.id));
+
+    return [...manualQueue, ...filteredAutoQueue];
+  }, [queue, library, currentSong, skippedTracks]);
+
+  const upNext = getUpNext();
+
+  const handleRemoveFromUpNext = (index: number) => {
+     // If the index is within the manual queue range
+     if (index < queue.length) {
+        setQueue(prev => prev.filter((_, i) => i !== index));
+     } else {
+        // It's a library track. We can't delete it from library, but we can "skip" it.
+        // Calculate the actual song object from the unified list
+        const songToSkip = upNext[index];
+        if (songToSkip) {
+            setSkippedTracks(prev => {
+                const newSet = new Set(prev);
+                newSet.add(songToSkip.id);
+                return newSet;
+            });
+        }
+     }
+  };
 
   const onTimeUpdate = () => {
     if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
@@ -274,14 +382,12 @@ const App: React.FC = () => {
   const onLoadedMetadata = () => {
     if (audioRef.current) {
         setDuration(audioRef.current.duration);
-        // Force volume application on metadata load
         audioRef.current.volume = volume;
     }
   };
   
   const handleAudioError = (e: any) => {
     console.error("Audio playback error:", e);
-    // Only show notification if we actually have a song loaded
     if (currentSong) {
         showNotification("Error playing audio file. Format may be unsupported.", 'error');
         setIsPlaying(false);
@@ -305,17 +411,20 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  // Sync audio element with React state
+  // Reset skips when starting fresh playback from library
+  const handlePlayFromLibrary = (song: Song) => {
+      setCurrentSong(song);
+      setIsPlaying(true);
+      setSkippedTracks(new Set()); 
+  };
+
   useEffect(() => {
     if (audioRef.current) {
       if (isPlaying) {
-        // We use a promise check to prevent "The play() request was interrupted" errors
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
             playPromise.catch(e => {
                 console.error("Playback start error:", e);
-                // Don't auto-pause here immediately to avoid UI flickering if it's just a race condition
-                // But if it's "NotAllowedError", we should probably pause UI
                 if (e.name === 'NotAllowedError') {
                     setIsPlaying(false);
                     showNotification("Autoplay blocked. Click play to start.", 'info');
@@ -328,7 +437,6 @@ const App: React.FC = () => {
     }
   }, [isPlaying, currentSong]);
 
-  // Sync volume on load - ensuring it's always applied
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume, currentSong]);
@@ -337,7 +445,6 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-black text-slate-200 selection:bg-sky-500/30 relative">
       <div className="bg-noise"></div>
       
-      {/* Toast Notifications */}
       {notification && (
         <Toast 
           message={notification.message} 
@@ -346,8 +453,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Invisible Audio Element: The Single Source of Truth */}
-      {/* Removed crossOrigin="anonymous" to fix Blob URL playback on some browsers */}
       {currentSong && (
         <audio 
           ref={audioRef}
@@ -356,11 +461,10 @@ const App: React.FC = () => {
           onTimeUpdate={onTimeUpdate}
           onLoadedMetadata={onLoadedMetadata}
           onError={handleAudioError}
-          onEnded={() => setIsPlaying(false)}
+          onEnded={playNext} 
         />
       )}
 
-      {/* Upload Loading Overlay */}
       {isUploading && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center">
           <div className="text-center">
@@ -404,15 +508,13 @@ const App: React.FC = () => {
                 songs={library}
                 currentSong={currentSong}
                 isPlaying={isPlaying}
-                onPlay={(song) => {
-                    setCurrentSong(song);
-                    setIsPlaying(true);
-                }}
+                onPlay={handlePlayFromLibrary}
                 onPause={() => setIsPlaying(false)}
                 onNavigateHome={() => handleNavigate('home')}
                 user={user}
                 onLoginClick={() => setIsLoginOpen(true)}
                 onRefresh={() => user && refreshLibrary(user.id)}
+                onAddToQueue={handleAddToQueue}
              />
           )}
         </main>
@@ -420,7 +522,6 @@ const App: React.FC = () => {
         {view === 'home' && <Footer />}
       </div>
 
-      {/* Logic: If Full Player is NOT open, show Mini Player */}
       {currentSong && !isFullPlayerOpen && (
         <Player 
           song={currentSong} 
@@ -430,10 +531,11 @@ const App: React.FC = () => {
           duration={duration}
           onSeek={onSeek}
           onExpand={() => setIsFullPlayerOpen(true)}
+          onNext={playNext}
+          onPrev={playPrevious}
         />
       )}
 
-      {/* Full Player Overlay */}
       {currentSong && isFullPlayerOpen && (
         <FullPlayer
           song={currentSong}
@@ -445,6 +547,10 @@ const App: React.FC = () => {
           volume={volume}
           onVolumeChange={onVolumeChange}
           onClose={() => setIsFullPlayerOpen(false)}
+          onNext={playNext}
+          onPrev={playPrevious}
+          queue={upNext} // PASS THE FULL UPCOMING LIST
+          onRemoveFromQueue={handleRemoveFromUpNext}
         />
       )}
 
@@ -454,7 +560,6 @@ const App: React.FC = () => {
         onGuestLogin={handleGuestLogin}
       />
       
-      {/* Spacer to prevent content from hiding behind mini player */}
       {currentSong && !isFullPlayerOpen && <div className="h-24" />}
     </div>
   );

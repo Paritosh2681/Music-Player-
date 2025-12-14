@@ -10,6 +10,8 @@ interface PlayerProps {
   duration: number;
   onSeek: (time: number) => void;
   onExpand: () => void;
+  onNext: () => void;
+  onPrev: () => void;
 }
 
 export const Player: React.FC<PlayerProps> = ({ 
@@ -19,7 +21,9 @@ export const Player: React.FC<PlayerProps> = ({
   currentTime, 
   duration, 
   onSeek,
-  onExpand
+  onExpand,
+  onNext,
+  onPrev
 }) => {
   
   const stopProp = (e: React.MouseEvent) => {
@@ -61,7 +65,10 @@ export const Player: React.FC<PlayerProps> = ({
 
         {/* Controls */}
         <div className="flex items-center gap-4 md:gap-6" onClick={stopProp}>
-           <button className="hidden md:block text-slate-400 hover:text-white transition">
+           <button 
+             onClick={onPrev}
+             className="hidden md:block text-slate-400 hover:text-white transition"
+           >
              <SkipBack className="w-5 h-5" />
            </button>
            
@@ -72,7 +79,10 @@ export const Player: React.FC<PlayerProps> = ({
               {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
             </button>
             
-            <button className="text-slate-400 hover:text-white transition">
+            <button 
+              onClick={onNext}
+              className="text-slate-400 hover:text-white transition"
+            >
              <SkipForward className="w-5 h-5" />
            </button>
         </div>
