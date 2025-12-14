@@ -132,7 +132,7 @@ export const Library: React.FC<LibraryProps> = ({
            return (
              <div 
                 key={song.id} 
-                className={`group grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg transition-all duration-200 ${
+                className={`group grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg transition-all duration-200 relative ${
                   isCurrent ? 'bg-zinc-900/80 border border-zinc-800' : 'hover:bg-zinc-900/30 border border-transparent hover:border-zinc-800/50'
                 }`}
              >
@@ -176,23 +176,32 @@ export const Library: React.FC<LibraryProps> = ({
                 </div>
 
                 {/* Actions */}
-                <div className="col-span-5 md:col-span-2 flex items-center justify-end gap-2">
+                <div className="col-span-5 md:col-span-2 flex items-center justify-end gap-2 relative z-20">
                    {onAddToQueue && (
                       <button 
-                         onClick={(e) => { e.stopPropagation(); onAddToQueue(song); }}
-                         className="p-2 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors opacity-0 group-hover:opacity-100"
+                         onClick={(e) => { 
+                           e.preventDefault();
+                           e.stopPropagation(); 
+                           onAddToQueue(song); 
+                         }}
+                         className="p-2 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
                          title="Add to Queue"
+                         type="button"
                       >
                          <ListPlus className="w-4 h-4" />
                       </button>
                    )}
                    <button 
-                      onClick={() => isCurrent && isPlaying ? onPause() : onPlay(song)}
-                      className={`p-2 rounded-full transition-all ${
+                      onClick={(e) => {
+                         e.stopPropagation(); // Stop row click if we implement one later
+                         isCurrent && isPlaying ? onPause() : onPlay(song);
+                      }}
+                      className={`p-2 rounded-full transition-all cursor-pointer ${
                          isCurrent 
                             ? 'bg-sky-500/10 text-sky-500 hover:bg-sky-500/20' 
-                            : 'bg-zinc-800 text-zinc-400 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 hover:text-white'
+                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
                       }`}
+                      type="button"
                    >
                       {isCurrent && isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
                    </button>

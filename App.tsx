@@ -53,6 +53,7 @@ const App: React.FC = () => {
   // Audio State
   const [library, setLibrary] = useState<Song[]>([]);
   const [queue, setQueue] = useState<Song[]>([]); // Manual Priority Queue
+  const [history, setHistory] = useState<Song[]>([]); // Playback History
   const [skippedTracks, setSkippedTracks] = useState<Set<string>>(new Set()); // Tracks removed from "Up Next"
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   
@@ -103,6 +104,7 @@ const App: React.FC = () => {
            setCurrentSong(null);
            setIsPlaying(false);
            setQueue([]);
+           setHistory([]);
            setSkippedTracks(new Set());
         }
       }
@@ -139,6 +141,7 @@ const App: React.FC = () => {
       setUser(null);
       setLibrary([]);
       setQueue([]);
+      setHistory([]);
       setSkippedTracks(new Set());
       setCurrentSong(null);
       setIsPlaying(false);
@@ -197,14 +200,16 @@ const App: React.FC = () => {
           };
 
           setLibrary(prev => [guestSong, ...prev]);
-          setCurrentSong(guestSong);
-          setIsPlaying(true);
+          if (!currentSong) {
+             setCurrentSong(guestSong);
+             setIsPlaying(true);
+          }
           setView('library');
           
           if (!isSupabaseConfigured && user.id !== 'guest') {
-             showNotification("Backend not connected. Playing locally.", 'info');
+             showNotification("Backend not connected. Track added locally.", 'info');
           } else {
-             showNotification("Playing local track (Guest Mode)", 'success');
+             showNotification("Track added to session", 'success');
           }
         } catch (e) {
           showNotification("Failed to load local file", 'error');
@@ -230,8 +235,10 @@ const App: React.FC = () => {
       newSong.coverUrl = coverUrl;
 
       setLibrary(prev => [newSong, ...prev]);
-      setCurrentSong(newSong);
-      setIsPlaying(true);
+      if (!currentSong) {
+         setCurrentSong(newSong);
+         setIsPlaying(true);
+      }
       setView('library');
       showNotification("Track uploaded & synced successfully", 'success');
 
@@ -252,8 +259,10 @@ const App: React.FC = () => {
       };
 
       setLibrary(prev => [tempSong, ...prev]);
-      setCurrentSong(tempSong);
-      setIsPlaying(true);
+      if (!currentSong) {
+          setCurrentSong(tempSong);
+          setIsPlaying(true);
+      }
       setView('library');
 
       showNotification(`Playing locally. Cloud error: ${msg}`, 'error');
@@ -264,8 +273,15 @@ const App: React.FC = () => {
 
   const togglePlay = () => setIsPlaying(!isPlaying);
 
-  const playNext = () => {
-    // 1. Check Priority Queue (Manual Additions)
+  const playNext = useCallback(() => {
+    if (!currentSong && library.length === 0) return;
+
+    // 1. Save current song to history before moving
+    if (currentSong) {
+      setHistory(prev => [...prev, currentSong]);
+    }
+
+    // 2. Check Priority Queue (Manual Additions)
     if (queue.length > 0) {
       const nextSong = queue[0];
       setQueue(prev => prev.slice(1)); // Remove first item
@@ -274,22 +290,22 @@ const App: React.FC = () => {
       return;
     }
 
-    // 2. Fallback to Library Order
-    if (!currentSong || library.length === 0) return;
-    
-    const currentIndex = library.findIndex(s => s.id === currentSong.id);
-    if (currentIndex === -1) {
-        // Current song might be from outside library (e.g. just uploaded) or deleted
-        // Just play first song in library if available
-        if (library.length > 0) {
-            setCurrentSong(library[0]);
-            setIsPlaying(true);
-        }
+    // 3. Fallback to Library Order
+    if (library.length === 0) {
+        setIsPlaying(false);
         return;
     }
-
-    // Find next valid index (skip skipped tracks)
+    
+    let currentIndex = -1;
+    if (currentSong) {
+        currentIndex = library.findIndex(s => s.id === currentSong.id);
+    }
+    
+    // If current song isn't in library (e.g. was from queue or deleted), start from beginning
+    // OR find next valid index (skip skipped tracks)
     let nextIndex = currentIndex + 1;
+    
+    // Find next unskipped track
     while (nextIndex < library.length && skippedTracks.has(library[nextIndex].id)) {
         nextIndex++;
     }
@@ -299,35 +315,48 @@ const App: React.FC = () => {
        setCurrentSong(library[nextIndex]);
        setIsPlaying(true);
     } else {
-       // End of playlist
+       // End of playlist - Wrap around or stop? 
+       // Let's stop for now, or could wrap to 0 if repeat is on
        setIsPlaying(false);
+       // Optional: Auto-loop
+       // setCurrentSong(library[0]);
+       // setIsPlaying(true);
     }
-  };
+  }, [currentSong, queue, library, skippedTracks]);
 
-  const playPrevious = () => {
-    if (!currentSong || library.length === 0) return;
+  const playPrevious = useCallback(() => {
+    if (!currentSong) return;
     
-    // If we are more than 3 seconds in, restart song
+    // 1. Restart if > 3 seconds in
     if (currentTime > 3) {
        if (audioRef.current) audioRef.current.currentTime = 0;
        return;
     }
 
-    const currentIndex = library.findIndex(s => s.id === currentSong.id);
-    
-    // Find prev valid index (simple check for now, could also skip backwards over skipped tracks)
-    if (currentIndex > 0) {
-      let prevIndex = currentIndex - 1;
-      while (prevIndex >= 0 && skippedTracks.has(library[prevIndex].id)) {
-         prevIndex--;
-      }
-
-      if (prevIndex >= 0) {
-         setCurrentSong(library[prevIndex]);
-         setIsPlaying(true);
-      }
+    // 2. Check History
+    if (history.length > 0) {
+       const prevSong = history[history.length - 1];
+       setHistory(prev => prev.slice(0, -1)); // Pop
+       // We add the current one back to queue? No, previous logic is strictly history traversal usually.
+       // But if we go back, we might want to ensure we don't lose the flow.
+       // Simple history pop is best.
+       setCurrentSong(prevSong);
+       setIsPlaying(true);
+       return;
     }
-  };
+
+    // 3. Fallback to Library Logic (if history empty)
+    if (library.length > 0) {
+       const currentIndex = library.findIndex(s => s.id === currentSong.id);
+       if (currentIndex > 0) {
+          setCurrentSong(library[currentIndex - 1]);
+          setIsPlaying(true);
+       } else {
+          // Wrap to end? Or just restart first song
+          if (audioRef.current) audioRef.current.currentTime = 0;
+       }
+    }
+  }, [currentSong, currentTime, history, library]);
 
   const handleAddToQueue = (song: Song) => {
     setQueue(prev => [...prev, song]);
@@ -388,10 +417,10 @@ const App: React.FC = () => {
   
   const handleAudioError = (e: any) => {
     console.error("Audio playback error:", e);
-    if (currentSong) {
-        showNotification("Error playing audio file. Format may be unsupported.", 'error');
-        setIsPlaying(false);
-    }
+    // Don't just stop, try next song?
+    // setIsPlaying(false);
+    showNotification("Error playing file. Skipping...", 'error');
+    playNext();
   };
 
   const onSeek = (time: number) => {
@@ -411,10 +440,16 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  // Reset skips when starting fresh playback from library
+  // When playing from library, we usually want to clear history of "queue" but keep playback history?
+  // Or just set the context.
   const handlePlayFromLibrary = (song: Song) => {
+      // If we jump to a song, should we push the previous one to history? Yes.
+      if (currentSong) {
+         setHistory(prev => [...prev, currentSong]);
+      }
       setCurrentSong(song);
       setIsPlaying(true);
+      // We do NOT clear the manual queue (standard behavior), but we reset skips for the new context
       setSkippedTracks(new Set()); 
   };
 
