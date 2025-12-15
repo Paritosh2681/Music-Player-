@@ -57,6 +57,11 @@ const App: React.FC = () => {
   const [skippedTracks, setSkippedTracks] = useState<Set<string>>(new Set()); // Tracks removed from "Up Next"
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   
+  // Shuffle & Repeat State
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [isRepeat, setIsRepeat] = useState(false);
+  const [shuffledQueue, setShuffledQueue] = useState<Song[]>([]);
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -106,6 +111,8 @@ const App: React.FC = () => {
            setQueue([]);
            setHistory([]);
            setSkippedTracks(new Set());
+           setIsShuffled(false);
+           setShuffledQueue([]);
         }
       }
     };
@@ -143,6 +150,8 @@ const App: React.FC = () => {
       setQueue([]);
       setHistory([]);
       setSkippedTracks(new Set());
+      setShuffledQueue([]);
+      setIsShuffled(false);
       setCurrentSong(null);
       setIsPlaying(false);
       setView('home');
@@ -273,6 +282,41 @@ const App: React.FC = () => {
 
   const togglePlay = () => setIsPlaying(!isPlaying);
 
+  // Toggle Repeat
+  const toggleRepeat = () => setIsRepeat(prev => !prev);
+
+  // Toggle Shuffle
+  const toggleShuffle = () => {
+    if (isShuffled) {
+      setIsShuffled(false);
+      setShuffledQueue([]);
+    } else {
+      // Create shuffled version of the CURRENT playback context (Queue + Remaining Library)
+      const manualQueue = [...queue];
+      let autoQueue: Song[] = [];
+      
+      // Calculate remaining library tracks
+      if (currentSong && library.length > 0) {
+        const idx = library.findIndex(s => s.id === currentSong.id);
+        if (idx !== -1 && idx < library.length - 1) {
+          autoQueue = library.slice(idx + 1);
+        }
+      }
+      
+      // Combine and filter skipped
+      const tracksToShuffle = [...manualQueue, ...autoQueue.filter(s => !skippedTracks.has(s.id))];
+      
+      // Fisher-Yates Shuffle
+      for (let i = tracksToShuffle.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tracksToShuffle[i], tracksToShuffle[j]] = [tracksToShuffle[j], tracksToShuffle[i]];
+      }
+      
+      setShuffledQueue(tracksToShuffle);
+      setIsShuffled(true);
+    }
+  };
+
   const playNext = useCallback(() => {
     if (!currentSong && library.length === 0) return;
 
@@ -281,7 +325,26 @@ const App: React.FC = () => {
       setHistory(prev => [...prev, currentSong]);
     }
 
-    // 2. Check Priority Queue (Manual Additions)
+    // 2. SHUFFLE MODE LOGIC
+    if (isShuffled) {
+      if (shuffledQueue.length > 0) {
+        const nextSong = shuffledQueue[0];
+        setShuffledQueue(prev => prev.slice(1));
+        setCurrentSong(nextSong);
+        setIsPlaying(true);
+        
+        // IMPORTANT: Sync with manual queue. If we play a song that was in the manual queue, remove it.
+        // This prevents it from playing again if shuffle is turned off.
+        setQueue(prev => prev.filter(s => s.id !== nextSong.id));
+      } else {
+        setIsPlaying(false);
+      }
+      return;
+    }
+
+    // 3. STANDARD MODE LOGIC
+    
+    // Check Priority Queue (Manual Additions)
     if (queue.length > 0) {
       const nextSong = queue[0];
       setQueue(prev => prev.slice(1)); // Remove first item
@@ -290,7 +353,7 @@ const App: React.FC = () => {
       return;
     }
 
-    // 3. Fallback to Library Order
+    // Fallback to Library Order
     if (library.length === 0) {
         setIsPlaying(false);
         return;
@@ -301,28 +364,30 @@ const App: React.FC = () => {
         currentIndex = library.findIndex(s => s.id === currentSong.id);
     }
     
-    // If current song isn't in library (e.g. was from queue or deleted), start from beginning
-    // OR find next valid index (skip skipped tracks)
-    let nextIndex = currentIndex + 1;
-    
     // Find next unskipped track
+    let nextIndex = currentIndex + 1;
     while (nextIndex < library.length && skippedTracks.has(library[nextIndex].id)) {
         nextIndex++;
     }
     
     if (nextIndex < library.length) {
-       // Play next in library
        setCurrentSong(library[nextIndex]);
        setIsPlaying(true);
     } else {
-       // End of playlist - Wrap around or stop? 
-       // Let's stop for now, or could wrap to 0 if repeat is on
        setIsPlaying(false);
-       // Optional: Auto-loop
-       // setCurrentSong(library[0]);
-       // setIsPlaying(true);
     }
-  }, [currentSong, queue, library, skippedTracks]);
+  }, [currentSong, queue, library, skippedTracks, isShuffled, shuffledQueue]);
+
+  // Handler for Audio Ended Event
+  const handleSongEnd = () => {
+    if (isRepeat && audioRef.current) {
+        // Repeat the current song
+        audioRef.current.currentTime = 0;
+        audioRef.current.play();
+    } else {
+        playNext();
+    }
+  };
 
   const playPrevious = useCallback(() => {
     if (!currentSong) return;
@@ -337,9 +402,6 @@ const App: React.FC = () => {
     if (history.length > 0) {
        const prevSong = history[history.length - 1];
        setHistory(prev => prev.slice(0, -1)); // Pop
-       // We add the current one back to queue? No, previous logic is strictly history traversal usually.
-       // But if we go back, we might want to ensure we don't lose the flow.
-       // Simple history pop is best.
        setCurrentSong(prevSong);
        setIsPlaying(true);
        return;
@@ -352,7 +414,6 @@ const App: React.FC = () => {
           setCurrentSong(library[currentIndex - 1]);
           setIsPlaying(true);
        } else {
-          // Wrap to end? Or just restart first song
           if (audioRef.current) audioRef.current.currentTime = 0;
        }
     }
@@ -360,16 +421,23 @@ const App: React.FC = () => {
 
   const handleAddToQueue = (song: Song) => {
     setQueue(prev => [...prev, song]);
+    
+    // If we are in shuffle mode, also add to shuffle queue (randomly placed or at end? Let's append to end for simplicity)
+    if (isShuffled) {
+      setShuffledQueue(prev => [...prev, song]);
+    }
+    
     showNotification(`Added "${song.name}" to queue`, 'info');
   };
 
   // Derived state: What is actually playing next?
-  // Combines Manual Queue + Remaining Library Tracks (minus skipped ones)
   const getUpNext = useCallback(() => {
-    // 1. Manual Queue
-    const manualQueue = [...queue];
+    if (isShuffled) {
+      return shuffledQueue;
+    }
 
-    // 2. Library Continuation
+    // Standard Logic
+    const manualQueue = [...queue];
     let autoQueue: Song[] = [];
     if (currentSong && library.length > 0) {
        const idx = library.findIndex(s => s.id === currentSong.id);
@@ -377,22 +445,23 @@ const App: React.FC = () => {
           autoQueue = library.slice(idx + 1);
        }
     }
-
-    // 3. Filter out skipped tracks from the Library part
     const filteredAutoQueue = autoQueue.filter(s => !skippedTracks.has(s.id));
-
     return [...manualQueue, ...filteredAutoQueue];
-  }, [queue, library, currentSong, skippedTracks]);
+  }, [queue, library, currentSong, skippedTracks, isShuffled, shuffledQueue]);
 
   const upNext = getUpNext();
 
   const handleRemoveFromUpNext = (index: number) => {
+     if (isShuffled) {
+       setShuffledQueue(prev => prev.filter((_, i) => i !== index));
+       return;
+     }
+
      // If the index is within the manual queue range
      if (index < queue.length) {
         setQueue(prev => prev.filter((_, i) => i !== index));
      } else {
         // It's a library track. We can't delete it from library, but we can "skip" it.
-        // Calculate the actual song object from the unified list
         const songToSkip = upNext[index];
         if (songToSkip) {
             setSkippedTracks(prev => {
@@ -417,8 +486,6 @@ const App: React.FC = () => {
   
   const handleAudioError = (e: any) => {
     console.error("Audio playback error:", e);
-    // Don't just stop, try next song?
-    // setIsPlaying(false);
     showNotification("Error playing file. Skipping...", 'error');
     playNext();
   };
@@ -440,17 +507,22 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  // When playing from library, we usually want to clear history of "queue" but keep playback history?
-  // Or just set the context.
   const handlePlayFromLibrary = (song: Song) => {
-      // If we jump to a song, should we push the previous one to history? Yes.
       if (currentSong) {
          setHistory(prev => [...prev, currentSong]);
       }
       setCurrentSong(song);
       setIsPlaying(true);
-      // We do NOT clear the manual queue (standard behavior), but we reset skips for the new context
+      // Reset contextual states
       setSkippedTracks(new Set()); 
+      // If we jump track while shuffled, we should probably regenerate shuffle or just clear it?
+      // Standard behavior: Shuffle mode usually persists, but queue is effectively "reshuffled" relative to new song?
+      // For simplicity and matching "original order" requirement, let's keep shuffle ON but clear the shuffled queue 
+      // so it regenerates next time toggleShuffle is called OR if we want it to be smart, we regenerate it now.
+      // But the prompt says "return to its original order".
+      // Let's just turn off shuffle to avoid confusion when manually selecting a specific track in library
+      setIsShuffled(false);
+      setShuffledQueue([]);
   };
 
   useEffect(() => {
@@ -496,7 +568,7 @@ const App: React.FC = () => {
           onTimeUpdate={onTimeUpdate}
           onLoadedMetadata={onLoadedMetadata}
           onError={handleAudioError}
-          onEnded={playNext} 
+          onEnded={handleSongEnd} 
         />
       )}
 
@@ -584,8 +656,12 @@ const App: React.FC = () => {
           onClose={() => setIsFullPlayerOpen(false)}
           onNext={playNext}
           onPrev={playPrevious}
-          queue={upNext} // PASS THE FULL UPCOMING LIST
+          queue={upNext}
           onRemoveFromQueue={handleRemoveFromUpNext}
+          isShuffled={isShuffled}
+          toggleShuffle={toggleShuffle}
+          isRepeat={isRepeat}
+          toggleRepeat={toggleRepeat}
         />
       )}
 

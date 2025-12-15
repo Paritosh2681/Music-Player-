@@ -16,6 +16,11 @@ interface FullPlayerProps {
   onPrev: () => void;
   queue: Song[];
   onRemoveFromQueue: (index: number) => void;
+  // Shuffle & Repeat Props
+  isShuffled: boolean;
+  toggleShuffle: () => void;
+  isRepeat: boolean;
+  toggleRepeat: () => void;
 }
 
 export const FullPlayer: React.FC<FullPlayerProps> = ({
@@ -31,7 +36,11 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   onNext,
   onPrev,
   queue,
-  onRemoveFromQueue
+  onRemoveFromQueue,
+  isShuffled,
+  toggleShuffle,
+  isRepeat,
+  toggleRepeat
 }) => {
   const [showQueue, setShowQueue] = useState(false);
 
@@ -82,7 +91,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
         {/* Conditional View: Queue vs Player */}
         {showQueue ? (
           <div className="w-full h-full flex flex-col animate-[fadeIn_0.2s_ease-out]">
-             <h3 className="text-xl text-white font-medium mb-4">Up Next</h3>
+             <h3 className="text-xl text-white font-medium mb-4">Up Next {isShuffled && <span className="text-xs text-sky-500 ml-2">(Shuffled)</span>}</h3>
              {queue.length === 0 ? (
                <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
                   <ListMusic className="w-12 h-12 mb-2 opacity-20" />
@@ -179,7 +188,13 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
 
             {/* Controls */}
             <div className="flex items-center justify-between w-full max-w-sm shrink-0">
-              <button className="text-slate-600 hover:text-sky-500 transition p-2"><Shuffle className="w-5 h-5" /></button>
+              <button 
+                onClick={toggleShuffle}
+                className={`transition p-2 ${isShuffled ? 'text-sky-500' : 'text-slate-600 hover:text-white'}`}
+                title="Shuffle"
+              >
+                <Shuffle className="w-5 h-5" />
+              </button>
               
               <button onClick={onPrev} className="text-slate-300 hover:text-white transition hover:scale-105 p-2">
                  <SkipBack className="w-8 h-8" />
@@ -196,7 +211,13 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
                  <SkipForward className="w-8 h-8" />
               </button>
               
-              <button className="text-slate-600 hover:text-sky-500 transition p-2"><Repeat className="w-5 h-5" /></button>
+              <button 
+                onClick={toggleRepeat}
+                className={`transition p-2 ${isRepeat ? 'text-sky-500' : 'text-slate-600 hover:text-white'}`}
+                title="Repeat One"
+              >
+                <Repeat className="w-5 h-5" />
+              </button>
             </div>
 
             {/* Volume */}
